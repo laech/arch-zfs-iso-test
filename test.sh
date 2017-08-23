@@ -13,4 +13,4 @@ cd "$(dirname $0)"
 
 stack setup
 stack build
-stack exec arch-zfs-iso-test 0.6.5.10 "$1"
+stack exec arch-zfs-iso-test 0.7.1 "$1"
