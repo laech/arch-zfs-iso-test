@@ -4,13 +4,21 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if [[ $# != 1 ]]; then
-    echo "Usage: <this-program> <iso>"
+if [[ $# != 2 ]]; then
+    echo "Usage: <this-program> <expected-zfs-version> <iso>"
     exit 1
 fi
+
+[[ ! -e "$2" ]] \
+    && echo "error: $2 does not exist" 1>&2 \
+    && exit 1
+
+[[ ! -f "$2" ]] \
+    && echo "error: $2 is not a file" 1>&2 \
+    && exit 1
 
 cd "$(dirname $0)"
 
 stack setup
 stack build
-stack exec arch-zfs-iso-test 0.7.1 "$1"
+stack exec arch-zfs-iso-test "$1" "$2"
