@@ -17,8 +17,10 @@ fi
     && echo "error: $2 is not a file" 1>&2 \
     && exit 1
 
+readonly iso=$(realpath "$2")
+
 cd "$(dirname $0)"
 
 stack setup
 stack build
-stack exec arch-zfs-iso-test "$1" "$2"
+stack exec arch-zfs-iso-test "$1" "$iso"
