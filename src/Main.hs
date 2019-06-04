@@ -5,41 +5,44 @@ import qualified VM
 
 import Control.Exception
 import Control.Monad
+import Data.List
 import System.Environment
 import System.Exit
 import System.Log.Logger
 import VM (VM)
 
 main :: IO ()
-main =
-  getArgs >>= run >>= \passed ->
-    if passed
-      then infoM "Main" "\nPASSED\n" >> exitSuccess
-      else infoM "Main" "\nFAILED\n" >> exitFailure
-
-run :: [String] -> IO Bool
-run [zfsVersion, iso] = do
+main = do
   updateGlobalLogger rootLoggerName (setLevel INFO)
-  vm <- VM.build "arch-zfs-iso-test"
-  result <- test vm zfsVersion iso
-  VM.destroy vm
-  pure result
-run _ = die "Usage: <this-program> <zfs-version> <path-to-iso>"
+  args <- getArgs
+  test args
+  infoM "Main" "\nPASSED\n" >> exitSuccess
 
-test :: VM -> String -> FilePath -> IO Bool
-test vm zfsVersion iso = do
+test :: [String] -> IO ()
+test [iso] = do
+  vm <- VM.build "arch-zfs-iso-test"
   VM.attachIso vm iso
   VM.run vm
-  kernelVersion <- trim <$> VM.execute vm "uname -r"
-  actualStatus <- trim <$> VM.execute vm "dkms status"
-  let expectedStatus =
-        "zfs, " ++ zfsVersion ++ ", " ++ kernelVersion ++ ", x86_64: installed"
-  if expectedStatus == actualStatus
-    then pure True
-    else do
-      infoM "Main" ("Expected:\n" ++ expectedStatus)
-      infoM "Main" ("Actual:\n" ++ actualStatus)
-      pure False
+  testZfsRepoKeyIsSigned vm
+  testZfsIsInstalled vm
+  VM.destroy vm
+test _ = die "Usage: <this-program> <path-to-iso>"
+
+testZfsRepoKeyIsSigned :: VM -> IO ()
+testZfsRepoKeyIsSigned vm = do
+  output <- VM.execute vm "pacman-key --list-keys F75D9D76"
+  unless
+    ("[  full  ] ArchZFS Bot <buildbot@archzfs.com>" `isInfixOf` output &&
+     "[  full  ] ArchZFS Bot <bot@archzfs.com>" `isInfixOf` output)
+    (throwIO (ExitFailure 1) <*
+     errorM "Main" ("ArchZFS repo key not signed:\n" ++ output))
+
+testZfsIsInstalled :: VM -> IO ()
+testZfsIsInstalled vm = do
+  output <- trim <$> VM.execute vm "zpool list"
+  unless
+    ("no pools available" == output)
+    (throwIO (ExitFailure 1) <* errorM "Main" ("Unexpected output:\n" ++ output))
 
 trim :: String -> String
 trim = Text.unpack . Text.strip . Text.pack
